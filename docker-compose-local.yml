@@ -11,9 +11,10 @@ services:
     restart: unless-stopped
     hostname: atlas
     volumes:
-      - ./conf:/apache-atlas/conf
-      - ./data:/apache-atlas/data
-      - ./logs:/apache-atlas/logs
+      - atlas_conf:/apache-atlas/conf
+      - atlas_data:/apache-atlas/data
+      - atlas_logs:/apache-atlas/logs
+      - hadoop_srcfolder:/opt/hadoop-3.2.1
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
@@ -25,7 +26,6 @@ services:
       - ./hadoop-hive.env
     ports:
       - "50070:50070"
-
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
     volumes:
@@ -36,9 +36,8 @@ services:
       SERVICE_PRECONDITION: "namenode:50070"
     ports:
       - "50075:50075"
-
   hive-server:
-    image: bde2020/hive:2.3.2-postgresql-metastore
+    image: ljiang/hive:2.3.2-postgresql-metastore-kafka-zookeeper-atlas-hive-hook
     env_file:
       - ./hadoop-hive.env
     environment:
@@ -46,7 +45,6 @@ services:
       SERVICE_PRECONDITION: "hive-metastore:9083"
     ports:
       - "10000:10000"
-
   hive-metastore:
     image: bde2020/hive:2.3.2-postgresql-metastore
     env_file:
@@ -56,28 +54,32 @@ services:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
     ports:
       - "9083:9083"
-
   hive-metastore-postgresql:
     image: bde2020/hive-metastore-postgresql:2.3.0
-
+  
 volumes:
   namenode:
   datanode:
+  atlas_hive:
+    driver_opts:
+      o: bind
+      type: none
+      device: $HIVE_VOLUME
   atlas_conf:
     driver_opts:
       o: bind
       type: none
-      device: ./conf
+      device: $CONF_VOLUME
   atlas_data:
     driver_opts:
       o: bind
       type: none
-      device: ./data
+      device: $DATA_VOLUME
   atlas_logs:
     driver_opts:
       o: bind
       type: none
-      device: ./opts
+      device: $LOGS_VOLUME
 
 networks:
   default:
