@@ -1,0 +1,157 @@
+version: "3"
+
+services:
+  atlas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 21000:21000
+    container_name: atlas
+    restart: unless-stopped
+    hostname: atlas
+    volumes:
+      - atlas_conf:/apache-atlas/conf
+      - atlas_data:/apache-atlas/data
+      - atlas_logs:/apache-atlas/logs
+      - hadoop_srcfolder:/opt/hadoop-3.2.1
+    # networks:
+    #   - default
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+    container_name: hive
+    restart: unless-stopped
+    volumes:
+      - ./hive-site.xml:/opt/hive/conf/hive-site.xml
+    # networks:
+    #   - default
+
+  # namenode:
+  #   image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+  #   volumes:
+  #     - hadoop_namenode:/hadoop/dfs/name
+  #   environment:
+  #     - CLUSTER_NAME=test
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   ports:
+  #     - "50070:50070"
+  #   container_name: namenode
+  #   restart: unless-stopped
+  #   # networks:
+  #   #   - default
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+    restart: unless-stopped
+    # networks:
+    #   - default
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+  presto-coordinator:
+    image: shawnzhu/prestodb:0.181
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    # networks:
+    #   - default
+
+  # datanode_0:
+  #   image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+  #   volumes:
+  #     - hadoop_datanode_0:/hadoop/dfs/data
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   environment:
+  #     SERVICE_PRECONDITION: "namenode:50070"
+  #   # ports:
+  #   #   - "50075:50075"
+  #   container_name: datanode_0
+  #   restart: unless-stopped
+  #   # networks:
+  #   #   - default
+
+  # datanode_1:
+  #   image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+  #   volumes:
+  #     - hadoop_datanode_1:/hadoop/dfs/data
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   environment:
+  #     SERVICE_PRECONDITION: "namenode:50070"
+  #   container_name: datanode_1
+  #   # networks:
+  #   #   - default
+
+  # datanode_2:
+  #   image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+  #   volumes:
+  #     - hadoop_datanode_2:/hadoop/dfs/data
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   environment:
+  #     SERVICE_PRECONDITION: "namenode:50070"
+  #   container_name: datanode_2
+  #   # networks:
+  #   #   - default
+
+  # datanode_3:
+  #   image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+  #   volumes:
+  #     - hadoop_datanode_3:/hadoop/dfs/data
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   environment:
+  #     SERVICE_PRECONDITION: "namenode:50070"
+  #   container_name: datanode_3
+  #   # networks:
+  #   #   - default
+
+# networks:
+#   default:
+#     external: true
+#     name: $NETWORK
+
+volumes:
+  hadoop_namenode:
+  hadoop_srcfolder:
+  hadoop_datanode_0:
+  hadoop_datanode_1:
+  hadoop_datanode_2:
+  hadoop_datanode_3:
+  atlas_hive:
+    driver_opts:
+      o: bind
+      type: none
+      device: $HIVE_VOLUME
+  atlas_conf:
+    driver_opts:
+      o: bind
+      type: none
+      device: $CONF_VOLUME
+  atlas_data:
+    driver_opts:
+      o: bind
+      type: none
+      device: $DATA_VOLUME
+  atlas_logs:
+    driver_opts:
+      o: bind
+      type: none
+      device: $LOGS_VOLUME
