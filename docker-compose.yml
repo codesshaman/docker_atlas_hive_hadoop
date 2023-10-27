@@ -29,8 +29,8 @@ services:
       - "10000:10000"
     container_name: hive
     restart: unless-stopped
-    volumes:
-      - ./hive-site.xml:/opt/hive/conf/hive-site.xml
+    # volumes:
+    #   - ./hive-site.xml:/opt/hive/conf/hive-site.xml
     # networks:
     #   - default
 
@@ -135,11 +135,6 @@ volumes:
   hadoop_datanode_1:
   hadoop_datanode_2:
   hadoop_datanode_3:
-  atlas_hive:
-    driver_opts:
-      o: bind
-      type: none
-      device: $HIVE_VOLUME
   atlas_conf:
     driver_opts:
       o: bind
