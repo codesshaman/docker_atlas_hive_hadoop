@@ -1,49 +1,104 @@
-[![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/big-data-europe/Lobby)
+# Docker-compose for atlas managing hive metadata and lineage
 
-# docker-hive
+## Prerequisite
 
-This is a docker container for Apache Hive 2.3.2. It is based on https://github.com/big-data-europe/docker-hadoop so check there for Hadoop configurations.
-This deploys Hive and starts a hiveserver2 on port 10000.
-Metastore is running with a connection to postgresql database.
-The hive configuration is performed with HIVE_SITE_CONF_ variables (see hadoop-hive.env for an example).
+### Build atlas
 
-To run Hive with postgresql metastore:
-```
-    docker-compose up -d
-```
-
-To deploy in Docker Swarm:
-```
-    docker stack deploy -c docker-compose.yml hive
-```
-
-To run a PrestoDB 0.181 with Hive connector:
+Download atlas source code:
 
 ```
-  docker-compose up -d presto-coordinator
+git clone https://github.com/apache/atlas.git
+cd atlas
 ```
 
-This deploys a Presto server listens on port `8080`
+Checkout version `release-2.1.0-rc3`:
 
-## Testing
-Load data into Hive:
 ```
-  $ docker-compose exec hive-server bash
-  # /opt/hive/bin/beeline -u jdbc:hive2://localhost:10000
-  > CREATE TABLE pokes (foo INT, bar STRING);
-  > LOAD DATA LOCAL INPATH '/opt/hive/examples/files/kv1.txt' OVERWRITE INTO TABLE pokes;
+git checkout release-2.1.0-rc3
 ```
 
-Then query it from PrestoDB. You can get [presto.jar](https://prestosql.io/docs/current/installation/cli.html) from PrestoDB website:
+Modify some code that conflicts with latest hive:
+
+File `addons/hive-bridge/src/main/java/org/apache/atlas/hive/bridge/HiveMetaStoreBridge.java`, comment out line 577~581:
+
 ```
-  $ wget https://repo1.maven.org/maven2/io/prestosql/presto-cli/308/presto-cli-308-executable.jar
-  $ mv presto-cli-308-executable.jar presto.jar
-  $ chmod +x presto.jar
-  $ ./presto.jar --server localhost:8080 --catalog hive --schema default
-  presto> select * from pokes;
+    public static String getDatabaseName(Database hiveDB) {
+        String dbName      = hiveDB.getName().toLowerCase();
+        // String catalogName = hiveDB.getCatalogName() != null ? hiveDB.getCatalogName().toLowerCase() : null;
+
+        // if (StringUtils.isNotEmpty(catalogName) && !StringUtils.equals(catalogName, DEFAULT_METASTORE_CATALOG)) {
+        //     dbName = catalogName + SEP + dbName;
+        // }
+
+        return dbName;
+    }
 ```
 
-## Contributors
-* Ivan Ermilov [@earthquakesan](https://github.com/earthquakesan) (maintainer)
-* Yiannis Mouchakis [@gmouchakis](https://github.com/gmouchakis)
-* Ke Zhu [@shawnzhu](https://github.com/shawnzhu)
+Build:
+
+```
+mvn clean -DskipTests package -Pdist,embedded-hbase-solr
+```
+
+Copy necessary files into this project's root directory:
+
+```
+cp -r distro/target/apache-atlas-2.1.0-hive-hook/apache-atlas-hive-hook-2.1.0 <ROOT_OF_THIS_PROJECT>
+```
+
+### Make docker images
+
+Use make:
+
+```
+make
+```
+
+## Run
+
+### Start services
+
+`cd` to this project's root directory, then start services using `docker-compose`:
+
+```
+docker-compose up -d
+```
+
+### Login atlas using Web UI
+
+Open `http://localhost:21000` in your local browser, wait until you see the login page, use `admin` / `admin` to login.
+
+### Run some hive `SQL`s
+
+`bash` into the hive container:
+
+```
+docker-compose exec hive-server bash
+```
+
+Start beeline:
+
+```
+/opt/hive/bin/beeline -u jdbc:hive2://localhost:10000
+```
+
+Run some statements containing certain lineage info, e.g.:
+
+```
+create table t(i int);
+create view v as select * from t;
+```
+
+### Check lineage in Web UI
+
+Now refresh the atlas Web UI page, you'll see a bunch of hive entities captured, each of which containing the lineage info.
+
+## References
+
+[Doc of atlas's hive hook](http://atlas.apache.org/index.html#/HookHive)
+
+[Solving incompatibility between latest atlas and hive](https://liangjunjiang.medium.com/deploy-atlas-hive-hook-fcb130b7db01)
+
+[Docker atlas](https://github.com/sburn/docker-apache-atlas)
+
+[Docker hive](https://github.com/big-data-europe/docker-hive)

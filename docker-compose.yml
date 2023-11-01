@@ -1,19 +1,24 @@
-version: "3.5"
+version: "3"
 
 services:
-  atlas:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  zk:
+    image: zookeeper:latest
+    container_name: zookeeper
     ports:
-      - 21000:21000
-    container_name: atlas
-    restart: unless-stopped
-    hostname: atlas
-    volumes:
-      - ./conf:/apache-atlas/conf
-      - ./data:/apache-atlas/data
-      - ./logs:/apache-atlas/logs
+      - "2181:2181"
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: "kafka"
+      KAFKA_ZOOKEEPER_CONNECT: "zk:2181"
+      KAFKA_MESSAGE_MAX_BYTES: 20000000
+      KAFKA_LOG_DIRS: /data
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - "zk"
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
@@ -25,6 +30,7 @@ services:
       - ./hadoop-hive.env
     ports:
       - "50070:50070"
+    container_name: hadoop-namenode
 
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
@@ -36,11 +42,16 @@ services:
       SERVICE_PRECONDITION: "namenode:50070"
     ports:
       - "50075:50075"
+    container_name: hadoop-datanode
 
   hive-server:
-    image: bde2020/hive:2.3.2-postgresql-metastore
+    # image: zanmato1984/hive
+    build:
+      context: .
+      dockerfile: hive.Dockerfile 
     env_file:
       - ./hadoop-hive.env
+    container_name: hive
     environment:
       HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
       SERVICE_PRECONDITION: "hive-metastore:9083"
@@ -51,6 +62,7 @@ services:
     image: bde2020/hive:2.3.2-postgresql-metastore
     env_file:
       - ./hadoop-hive.env
+    container_name: hive-metastore
     command: /opt/hive/bin/hive --service metastore
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
@@ -59,26 +71,24 @@ services:
 
   hive-metastore-postgresql:
     image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-postgres
+
+  atlas:
+    # image: zanmato1984/atlas
+    build:
+      context: .
+      dockerfile: atlas.Dockerfile 
+    # image: sburn/apache-atlas
+    ports:
+      - "21000:21000"
+      - "9026:9026"
+      - "9027:9027"
+    container_name: atlas
+    command:
+      - /opt/apache-atlas-2.1.0/bin/atlas_start.py
+        # depends_on:
+        #   - "kafka"
 
 volumes:
   namenode:
   datanode:
-  atlas_conf:
-    driver_opts:
-      o: bind
-      type: none
-      device: ./conf
-  atlas_data:
-    driver_opts:
-      o: bind
-      type: none
-      device: ./data
-  atlas_logs:
-    driver_opts:
-      o: bind
-      type: none
-      device: ./opts
-
-networks:
-  default:
-    name: datahub_network
